@@ -1,16 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type Message = {
   role: "user" | "assistant";
   content: string;
 };
 
+const STORAGE_KEY = "whale-ai-messages";
+
 export default function Home() {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // 🧠 Load memory on first render
+  useEffect(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      setMessages(JSON.parse(saved));
+    }
+  }, []);
+
+  // 💾 Save memory whenever messages change
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+  }, [messages]);
 
   async function sendMessage() {
     if (!input.trim()) return;
@@ -22,9 +37,7 @@ export default function Home() {
 
     const response = await fetch("/api/chat", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         messages: [...messages, userMessage],
       }),
@@ -40,7 +53,7 @@ export default function Home() {
 
     let assistantText = "";
 
-    // Add empty assistant message (will be filled while streaming)
+    // placeholder assistant message
     setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
 
     while (true) {
@@ -60,7 +73,6 @@ export default function Home() {
 
           if (token) {
             assistantText += token;
-
             setMessages((prev) => {
               const updated = [...prev];
               updated[updated.length - 1] = {
@@ -71,7 +83,7 @@ export default function Home() {
             });
           }
         } catch {
-          // ignore malformed chunks
+          // ignore invalid chunks
         }
       }
     }
@@ -79,9 +91,20 @@ export default function Home() {
     setLoading(false);
   }
 
+  function clearMemory() {
+    localStorage.removeItem(STORAGE_KEY);
+    setMessages([]);
+  }
+
   return (
     <main className="flex min-h-screen flex-col items-center p-6 bg-white">
-      <h1 className="text-3xl font-bold mb-4">🐋 Whale AI</h1>
+      <h1 className="text-3xl font-bold mb-2">🐋 Whale AI</h1>
+      <button
+        onClick={clearMemory}
+        className="text-sm text-red-500 mb-4"
+      >
+        Clear conversation
+      </button>
 
       <div className="w-full max-w-2xl space-y-3 mb-4">
         {messages.map((msg, i) => (
@@ -98,7 +121,7 @@ export default function Home() {
         ))}
 
         {loading && (
-          <div className="bg-gray-200 text-black p-3 rounded-lg">
+          <div className="bg-gray-200 p-3 rounded-lg">
             Whale AI is thinking… 🐋
           </div>
         )}
